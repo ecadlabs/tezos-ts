@@ -6,7 +6,7 @@ import {
   OpKind
 } from "@taquito/taquito";
 import type { ContractProvider } from "@taquito/taquito";
-import type { BeaconWallet } from "@taquito/beacon-wallet";
+import { BeaconWallet } from "@taquito/beacon-wallet";
 import { char2Bytes, verifySignature } from "@taquito/utils";
 import type { RequestSignPayloadInput } from "@airgap/beacon-sdk";
 import { SigningType } from "./types";
@@ -15,6 +15,7 @@ import type { TestSettings, TestResult } from "./types";
 import store from "./store";
 import contractToOriginate from "./contractToOriginate";
 import localStore from "./store";
+import { WalletConnect2 } from "@taquito/wallet-connect-2";
 
 const preparePayloadToSign = (
   input: string,
@@ -47,7 +48,7 @@ const sendTez = async (Tezos: TezosToolkit): Promise<TestResult> => {
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
@@ -57,12 +58,12 @@ const sendInt = async (
   let opHash = "";
   try {
     const op = await contract.methods.simple_param(5).send();
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
@@ -71,16 +72,15 @@ const sendComplexParam = async (
 ): Promise<TestResult> => {
   let opHash = "";
   try {
-    // const op = await contract.methods.complex_param(5, "Taquito").send();
     const op = await contract.methodsObject
       .complex_param({ 0: 5, 1: "Taquito" })
       .send();
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
@@ -90,22 +90,22 @@ const callFail = async (
   let opHash = "";
   try {
     const op = await contract.methods.fail([["unit"]]).send();
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     return { success: false, opHash: "" };
   } catch (error) {
     console.log(error);
     if (
-      error.hasOwnProperty("data") &&
+      Object.prototype.hasOwnProperty.call(error, "data") &&
       Array.isArray(error.data) &&
       error.data.length === 2 &&
-      error.data[1].hasOwnProperty("with") &&
-      error.data[1].with.hasOwnProperty("string") &&
+      Object.prototype.hasOwnProperty.call(error.data[1], "with") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with, "string") &&
       error.data[1].with.string === "Fail entrypoint"
     ) {
       return { success: true, opHash };
     } else {
-      return { success: false, opHash: "" };
+      return { success: false, opHash: "", error };
     }
   }
 };
@@ -116,22 +116,22 @@ const callFaiWithInt = async (
   let opHash = "";
   try {
     const op = await contract.methods.fail_with_int([["unit"]]).send();
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     return { success: false, opHash: "" };
   } catch (error) {
     console.log(error);
     if (
-      error.hasOwnProperty("data") &&
+      Object.prototype.hasOwnProperty.call(error, "data") &&
       Array.isArray(error.data) &&
       error.data.length === 2 &&
-      error.data[1].hasOwnProperty("with") &&
-      error.data[1].with.hasOwnProperty("int") &&
+      Object.prototype.hasOwnProperty.call(error.data[1], "with") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with, "int") &&
       error.data[1].with.int == 5
     ) {
       return { success: true, opHash };
     } else {
-      return { success: false, opHash: "" };
+      return { success: false, opHash: "", error };
     }
   }
 };
@@ -142,29 +142,29 @@ const callFaiWithPair = async (
   let opHash = "";
   try {
     const op = await contract.methods.fail_with_pair([["unit"]]).send();
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     return { success: false, opHash: "" };
   } catch (error) {
     console.log(error);
     if (
-      error.hasOwnProperty("data") &&
+      Object.prototype.hasOwnProperty.call(error, "data") &&
       Array.isArray(error.data) &&
       error.data.length === 2 &&
-      error.data[1].hasOwnProperty("with") &&
-      error.data[1].with.hasOwnProperty("prim") &&
+      Object.prototype.hasOwnProperty.call(error.data[1], "with") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with, "prim") &&
       error.data[1].with.prim === "Pair" &&
-      error.data[1].with.hasOwnProperty("args") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with, "args") &&
       Array.isArray(error.data[1].with.args) &&
       error.data[1].with.args.length === 2 &&
-      error.data[1].with.args[0].hasOwnProperty("int") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with.args[0], "int") &&
       error.data[1].with.args[0].int == 6 &&
-      error.data[1].with.args[1].hasOwnProperty("string") &&
+      Object.prototype.hasOwnProperty.call(error.data[1].with.args[1], "string") &&
       error.data[1].with.args[1].string === "taquito"
     ) {
       return { success: true, opHash };
     } else {
-      return { success: false, opHash: "" };
+      return { success: false, opHash: "", error };
     }
   }
 };
@@ -182,7 +182,7 @@ const originateSuccess = async (Tezos: TezosToolkit): Promise<TestResult> => {
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
@@ -216,7 +216,7 @@ const batchApiTest = async (Tezos: TezosToolkit): Promise<TestResult> => {
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
@@ -262,33 +262,40 @@ const batchApiContractCallsTest = async (
     }
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
 const signPayload = async (
   input: string,
-  wallet: BeaconWallet
+  wallet: BeaconWallet | WalletConnect2
 ): Promise<TestResult> => {
   const userAddress = await wallet.getPKH();
   const { payload, formattedInput } = preparePayloadToSign(input, userAddress);
   try {
-    const signedPayload = await wallet.client.requestSignPayload(payload);
+    let signedPayload: any;
+    if (wallet instanceof BeaconWallet) {
+      signedPayload = await wallet.client.requestSignPayload(payload);
+    } else if (wallet instanceof WalletConnect2) {
+      signedPayload = await wallet.signPayload(payload);
+    }
+
     return {
       success: true,
       opHash: "",
-      output: signedPayload.signature,
+      output: signedPayload,
       sigDetails: { input, formattedInput, bytes: payload.payload }
     };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "", output: JSON.stringify(error) };
+    return { success: false, opHash: "", output: JSON.stringify(error), error };
   }
 };
 
 const signPayloadAndSend = async (
+  Tezos: TezosToolkit,
   input: string,
-  wallet: BeaconWallet,
+  wallet: BeaconWallet | WalletConnect2,
   contract: ContractAbstraction<Wallet> | ContractAbstraction<ContractProvider>
 ): Promise<TestResult> => {
   if (!input) throw "No input provided";
@@ -296,58 +303,79 @@ const signPayloadAndSend = async (
   const userAddress = await wallet.getPKH();
   const { payload, formattedInput } = preparePayloadToSign(input, userAddress);
   try {
-    const signedPayload = await wallet.client.requestSignPayload(payload);
-    // gets user's public key
-    const activeAccount = await wallet.client.getActiveAccount();
-    const publicKey = activeAccount.publicKey;
+    let signature: string;
+    let publicKey: string
+    if (wallet instanceof BeaconWallet) {
+      const signedPayload = await wallet.client.requestSignPayload(payload);
+      signature = signedPayload.signature;
+      const activeAccount = await wallet.client.getActiveAccount();
+      publicKey = activeAccount.publicKey;
+    } else if (wallet instanceof WalletConnect2) {
+      const store = get(localStore);
+      signature = await wallet.signPayload(payload);
+      publicKey = (await Tezos.rpc.getManagerKey(store.userAddress)) as string;
+      if(!publicKey){
+        throw new Error(`Unable to retrieve the public key. Make sure that ${store.userAddress} is revealed.`)
+      }
+    }
+
     // sends transaction to contract
     const op = await contract.methods
-      .check_signature(publicKey, signedPayload.signature, payload.payload)
+      .check_signature(publicKey, signature, payload.payload)
       .send();
     await op.confirmation();
     return {
       success: true,
-      opHash: op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"],
-      output: signedPayload.signature,
+      opHash: Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"],
+      output: signature,
       sigDetails: { input, formattedInput, bytes: payload.payload }
     };
   } catch (error) {
-    return { success: false, opHash: "", output: JSON.stringify(error) };
+    return { success: false, opHash: "", output: JSON.stringify(error), error };
   }
 };
 
 const verifySignatureWithTaquito = async (
+  Tezos: TezosToolkit,
   input: string,
-  wallet: BeaconWallet,
-  contract: ContractAbstraction<Wallet> | ContractAbstraction<ContractProvider>
+  wallet: BeaconWallet | WalletConnect2
 ): Promise<TestResult> => {
   if (!input) throw "No input provided";
 
   const userAddress = await wallet.getPKH();
   const { payload, formattedInput } = preparePayloadToSign(input, userAddress);
   try {
-    const signedPayload = await wallet.client.requestSignPayload(payload);
-    // gets user's public key
-    const activeAccount = await wallet.client.getActiveAccount();
-    const publicKey = activeAccount.publicKey;
+    let signature: string;
+    let publicKey: string
+    if (wallet instanceof BeaconWallet) {
+      const signedPayload = await wallet.client.requestSignPayload(payload);
+      signature = signedPayload.signature
+      // gets user's public key
+      const activeAccount = await wallet.client.getActiveAccount();
+      publicKey = activeAccount.publicKey;
+    } else if (wallet instanceof WalletConnect2) {
+      signature = await wallet.signPayload(payload);
+      publicKey = (await Tezos.rpc.getManagerKey(await wallet.getPKH())) as string;
+    }
+
     // verifies signature
     const isSignatureCorrect = verifySignature(
       payload.payload,
       publicKey,
-      signedPayload.signature
+      signature
     );
     if (isSignatureCorrect) {
       return {
         success: true,
         opHash: "",
-        output: signedPayload.signature,
+        output: signature,
         sigDetails: { input, formattedInput, bytes: payload.payload }
       };
     } else {
       throw "Forged signature is incorrect";
     }
   } catch (error) {
-    return { success: false, opHash: "", output: JSON.stringify(error) };
+    return { success: false, opHash: "", output: JSON.stringify(error), error };
   }
 };
 
@@ -371,20 +399,20 @@ const setTransactionLimits = async (
       });
     }
 
-    opHash = op.hasOwnProperty("opHash") ? op["opHash"] : op["hash"];
+    opHash = Object.prototype.hasOwnProperty.call(op, "opHash") ? op["opHash"] : op["hash"];
     await op.confirmation();
     console.log("Operation successful with op hash:", opHash);
     return { success: true, opHash };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
 const tryConfirmationObservable = async (
   contract: ContractAbstraction<Wallet>
 ): Promise<TestResult> => {
-  let opHash = "";
+  const opHash = "";
   try {
     /*const op = await Tezos.wallet
         .transfer({ to: "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb", amount: 1 })
@@ -417,14 +445,14 @@ const tryConfirmationObservable = async (
     return { success: true, opHash, confirmationObsOutput: entries as any };
   } catch (error) {
     console.log(error);
-    return { success: false, opHash: "" };
+    return { success: false, opHash: "", error };
   }
 };
 
-const permit = async (Tezos: TezosToolkit, wallet: BeaconWallet) => {
+const permit = async (Tezos: TezosToolkit, _wallet: BeaconWallet | WalletConnect2) => {
   const store = get(localStore);
 
-  const expectedBytes =
+  const _expectedBytes =
     "05070707070a00000004f5f466ab0a0000001601c6ac120153e9a6f3daa3ecdfbf0bb13f529f832500070700000a0000002105a6a36a686b864c75b0cf59816d24c8649f6f6fb0ea10c4beaed8988d1d55edef";
 
   try {
@@ -518,7 +546,7 @@ const permit = async (Tezos: TezosToolkit, wallet: BeaconWallet) => {
 };
 
 const saplingShielded = async (
-  contract: ContractAbstraction<Wallet>
+  _contract: ContractAbstraction<Wallet>
 ): Promise<TestResult> => {
   return { success: false, opHash: "" };
 };
@@ -545,210 +573,210 @@ export const list = [
 export const init = (
   Tezos: TezosToolkit,
   contract: ContractAbstraction<Wallet> | ContractAbstraction<ContractProvider>,
-  wallet: BeaconWallet | undefined
+  wallet: BeaconWallet | WalletConnect2 | undefined
 ): TestSettings[] => [
-  {
-    id: "send-tez",
-    name: "Send tez",
-    description: "This test sends 0.1 tez to Alice's address",
-    documentation: 'https://tezostaquito.io/docs/wallet_API#making-transfers',
-    keyword: 'transfer',
-    run: () => sendTez(Tezos),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "contract-call-simple-type",
-    name: "Contract call with int",
-    description: "This test calls a contract entrypoint and passes an int",
-    documentation: 'https://tezostaquito.io/docs/smartcontracts',
-    keyword: 'methods',
-    run: () => sendInt(contract),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "contract-call-complex-type",
-    name: "Contract call with (pair nat string)",
-    description:
-      "This test calls a contract entrypoint and passes a pair holding a nat and a string",
-    documentation: 'https://tezostaquito.io/docs/smartcontracts/#choosing-between-the-methods-or-methodsobject-members-to-interact-with-smart-contracts',
-    keyword: 'methodsObject',
-    run: () => sendComplexParam(contract),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "contract-call-fail",
-    name: "Contract call that fails",
-    description:
-      'This test calls a contract entrypoint that fails with the message "Fail entrypoint"',
-    documentation: 'https://tezostaquito.io/docs/failwith_errors/',
-    keyword: 'failwith',
-    run: () => callFail(contract),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "contract-call-fail-with-int",
-    name: "Contract call that fails with int",
-    description: "This test calls a contract entrypoint that fails with an int",
-    documentation: 'https://tezostaquito.io/docs/failwith_errors/',
-    keyword: 'failwith',
-    run: () => callFaiWithInt(contract),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "contract-call-fail-with-pair",
-    name: "Contract call that fails with (pair int string)",
-    description: "This test calls a contract entrypoint that fails with a pair",
-    documentation: 'https://tezostaquito.io/docs/failwith_errors/',
-    keyword: 'failwith',
-    run: () => callFaiWithPair(contract),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "originate-success",
-    name: "Originate smart contract with success",
-    description: "This test successfully originates a smart contract",
-    documentation: 'https://tezostaquito.io/docs/originate/#originate-the-contract-using-taquito',
-    keyword: 'originate',
-    run: () => originateSuccess(Tezos),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "batch-api",
-    name: "Use the Batch API with a wallet",
-    description: "This test sends 0.3 tez to 3 different addresses",
-    documentation: 'https://tezostaquito.io/docs/batch_api/#--the-withtransfer-method',
-    keyword: 'withTransfer',
-    run: () => batchApiTest(Tezos),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "batch-api-contract-call",
-    name: "Use the Batch API for contract calls",
-    description: "This test calls the same entrypoint 3 times in 1 transaction",
-    documentation: 'https://tezostaquito.io/docs/batch_api/#--the-withcontractcall-method',
-    keyword: 'withcontractcall',
-    run: () =>
-      batchApiContractCallsTest(
-        Tezos,
-        contract,
-        wallet ? Tezos.wallet : Tezos.contract
-      ),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "sign-payload",
-    name: "Sign the provided payload",
-    description: "This test signs the payload provided by the user",
-    documentation: 'https://tezostaquito.io/docs/signing/#generating-a-signature-with-beacon-sdk',
-    keyword: 'requestSignPayload',
-    run: input => signPayload(input.text, wallet),
-    showExecutionTime: false,
-    inputRequired: true,
-    inputType: "string",
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "sign-payload-and-send",
-    name: "Sign and send the signature to the contract",
-    description:
-      "This test signs the provided payload and sends it to the contract to check it",
+    {
+      id: "send-tez",
+      name: "Send tez",
+      description: "This test sends 0.1 tez to Alice's address",
+      documentation: 'https://tezostaquito.io/docs/wallet_API#making-transfers',
+      keyword: 'transfer',
+      run: () => sendTez(Tezos),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "contract-call-simple-type",
+      name: "Contract call with int",
+      description: "This test calls a contract entrypoint and passes an int",
+      documentation: 'https://tezostaquito.io/docs/smartcontracts',
+      keyword: 'methods',
+      run: () => sendInt(contract),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "contract-call-complex-type",
+      name: "Contract call with (pair nat string)",
+      description:
+        "This test calls a contract entrypoint and passes a pair holding a nat and a string",
+      documentation: 'https://tezostaquito.io/docs/smartcontracts/#choosing-between-the-methods-or-methodsobject-members-to-interact-with-smart-contracts',
+      keyword: 'methodsObject',
+      run: () => sendComplexParam(contract),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "contract-call-fail",
+      name: "Contract call that fails",
+      description:
+        'This test calls a contract entrypoint that fails with the message "Fail entrypoint"',
+      documentation: 'https://tezostaquito.io/docs/failwith_errors/',
+      keyword: 'failwith',
+      run: () => callFail(contract),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "contract-call-fail-with-int",
+      name: "Contract call that fails with int",
+      description: "This test calls a contract entrypoint that fails with an int",
+      documentation: 'https://tezostaquito.io/docs/failwith_errors/',
+      keyword: 'failwith',
+      run: () => callFaiWithInt(contract),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "contract-call-fail-with-pair",
+      name: "Contract call that fails with (pair int string)",
+      description: "This test calls a contract entrypoint that fails with a pair",
+      documentation: 'https://tezostaquito.io/docs/failwith_errors/',
+      keyword: 'failwith',
+      run: () => callFaiWithPair(contract),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "originate-success",
+      name: "Originate smart contract with success",
+      description: "This test successfully originates a smart contract",
+      documentation: 'https://tezostaquito.io/docs/originate/#originate-the-contract-using-taquito',
+      keyword: 'originate',
+      run: () => originateSuccess(Tezos),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "batch-api",
+      name: "Use the Batch API with a wallet",
+      description: "This test sends 0.3 tez to 3 different addresses",
+      documentation: 'https://tezostaquito.io/docs/batch_api/#--the-withtransfer-method',
+      keyword: 'withTransfer',
+      run: () => batchApiTest(Tezos),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "batch-api-contract-call",
+      name: "Use the Batch API for contract calls",
+      description: "This test calls the same entrypoint 3 times in 1 transaction",
+      documentation: 'https://tezostaquito.io/docs/batch_api/#--the-withcontractcall-method',
+      keyword: 'withcontractcall',
+      run: () =>
+        batchApiContractCallsTest(
+          Tezos,
+          contract,
+          wallet ? Tezos.wallet : Tezos.contract
+        ),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "sign-payload",
+      name: "Sign the provided payload",
+      description: "This test signs the payload provided by the user",
+      documentation: 'https://tezostaquito.io/docs/signing/#generating-a-signature-with-beacon-sdk',
+      keyword: 'requestSignPayload',
+      run: input => signPayload(input.text, wallet),
+      showExecutionTime: false,
+      inputRequired: true,
+      inputType: "string",
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "sign-payload-and-send",
+      name: "Sign and send the signature to the contract",
+      description:
+        "This test signs the provided payload and sends it to the contract to check it",
       documentation: 'https://tezostaquito.io/docs/signing/#sending-the-signature-to-a-smart-contract',
       keyword: 'check_signature',
-    run: input => signPayloadAndSend(input.text, wallet, contract),
-    showExecutionTime: false,
-    inputRequired: true,
-    inputType: "string",
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "verify-signature",
-    name: "Verify a provided signature",
-    description:
-      "This test signs the provided payload and uses Taquito to verify the signature",
+      run: input => signPayloadAndSend(Tezos, input.text, wallet, contract),
+      showExecutionTime: false,
+      inputRequired: true,
+      inputType: "string",
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "verify-signature",
+      name: "Verify a provided signature",
+      description:
+        "This test signs the provided payload and uses Taquito to verify the signature",
       documentation: 'https://tezostaquito.io/docs/signing/#verifying-a-signature',
       keyword: 'verifySignature',
-    run: input => verifySignatureWithTaquito(input.text, wallet, contract),
-    showExecutionTime: false,
-    inputRequired: true,
-    inputType: "string",
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "set-transaction-limits",
-    name: "Set the transaction limits",
-    description:
-      "This test allows you to set the fee, storage limit and gas limit manually",
+      run: input => verifySignatureWithTaquito(Tezos, input.text, wallet),
+      showExecutionTime: false,
+      inputRequired: true,
+      inputType: "string",
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "set-transaction-limits",
+      name: "Set the transaction limits",
+      description:
+        "This test allows you to set the fee, storage limit and gas limit manually",
       documentation: 'https://tezostaquito.io/docs/transaction_limits/#setting-the-limits',
       keyword: 'transaction limits',
-    run: input =>
-      setTransactionLimits(
-        contract,
-        input.fee,
-        input.storageLimit,
-        input.gasLimit
-      ),
-    showExecutionTime: false,
-    inputRequired: true,
-    inputType: "set-limits",
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "confirmation-observable",
-    name: "Subscribe to confirmations",
-    description:
-      "This test updates the underlying contract and subscribes to 3 confirmations",
+      run: input =>
+        setTransactionLimits(
+          contract,
+          input.fee,
+          input.storageLimit,
+          input.gasLimit
+        ),
+      showExecutionTime: false,
+      inputRequired: true,
+      inputType: "set-limits",
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "confirmation-observable",
+      name: "Subscribe to confirmations",
+      description:
+        "This test updates the underlying contract and subscribes to 3 confirmations",
       documentation: 'https://tezostaquito.io/docs/confirmation_event_stream/#setting-up-the-observable',
       keyword: 'confirmationObservable',
-    run: () =>
-      tryConfirmationObservable(contract as ContractAbstraction<Wallet>),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "permit",
-    name: "Permit contract",
-    description: "This test implements TZIP-17",
-    keyword: 'permit',
-    run: () => permit(Tezos, wallet),
-    showExecutionTime: false,
-    inputRequired: false,
-    lastResult: { option: "none", val: false }
-  },
-  {
-    id: "sapling-shielded",
-    name: "Sapling shielded transaction",
-    description: "This test prepares and sends a shielded transaction to a Sapling pool",
-    documentation: 'https://tezostaquito.io/docs/sapling/',
-    keyword: 'sapling',
-    run: () => saplingShielded(contract as ContractAbstraction<Wallet>),
-    showExecutionTime: false,
-    inputRequired: true,
-    inputType: "sapling",
-    lastResult: { option: "none", val: false }
-  }
-  /*{
-        id: "originate-fail",
-        name: "Originate smart contract that fails",
-        description: "This test originates a smart contract that fails",
-        run: () => console.log("originate-fail")
-      }*/
-];
+      run: () =>
+        tryConfirmationObservable(contract as ContractAbstraction<Wallet>),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "permit",
+      name: "Permit contract",
+      description: "This test implements TZIP-17",
+      keyword: 'permit',
+      run: () => permit(Tezos, wallet),
+      showExecutionTime: false,
+      inputRequired: false,
+      lastResult: { option: "none", val: false }
+    },
+    {
+      id: "sapling-shielded",
+      name: "Sapling shielded transaction",
+      description: "This test prepares and sends a shielded transaction to a Sapling pool",
+      documentation: 'https://tezostaquito.io/docs/sapling/',
+      keyword: 'sapling',
+      run: () => saplingShielded(contract as ContractAbstraction<Wallet>),
+      showExecutionTime: false,
+      inputRequired: true,
+      inputType: "sapling",
+      lastResult: { option: "none", val: false }
+    }
+    /*{
+          id: "originate-fail",
+          name: "Originate smart contract that fails",
+          description: "This test originates a smart contract that fails",
+          run: () => console.log("originate-fail")
+        }*/
+  ];

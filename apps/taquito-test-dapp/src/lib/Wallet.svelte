@@ -3,111 +3,213 @@
   import { fly } from "svelte/transition";
   import { TezosToolkit } from "@taquito/taquito";
   import { BeaconWallet } from "@taquito/beacon-wallet";
-  // import { BeaconEvent, defaultEventCallbacks } from "@airgap/beacon-sdk";
-  import { NetworkType } from "@airgap/beacon-sdk";
-  import store from "../store";
+  import store, { SDK } from "../store";
   import { formatTokenAmount, shortenHash } from "../utils";
-  import { defaultMatrixNode, rpcUrl, defaultNetworkType } from "../config";
+  import { defaultMatrixNode, rpcUrl } from "../config";
   import type { TezosAccountAddress } from "../types";
+  import { WalletConnect2, PermissionScopeMethods, NetworkType as NetworkTypeWc2 } from "@taquito/wallet-connect-2";
+  import { Modals, closeModal, openModal } from "svelte-modals";
+  import ModalActivePairing from "./ModalActivePairing.svelte";
+  import type { NetworkType as  NetworkTypeBeacon } from "@airgap/beacon-sdk";
 
   let showDialog = false;
   let connectedWallet = "";
 
-  const createNewWallet = () => {
-    return new BeaconWallet(
-      $store.disableDefaultEvents
-        ? {
-            name: "Taquito Test Dapp",
-            matrixNodes: [defaultMatrixNode] as any,
-            preferredNetwork: $store.networkType,
-            // disableDefaultEvents: true // Disable all events / UI. This also disables the pairing alert.
-            // eventHandlers: {
-            //   // To keep the pairing alert, we have to add the following default event handlers back
-            //   [BeaconEvent.PAIR_INIT]: {
-            //     handler: defaultEventCallbacks.PAIR_INIT
-            //   },
-            //   [BeaconEvent.PAIR_SUCCESS]: {
-            //     handler: defaultEventCallbacks.PAIR_SUCCESS
-            //   }
-            // }
-          }
-        : {
-            name: "Taquito Test Dapp",
-            matrixNodes: [defaultMatrixNode] as any,
-            preferredNetwork: $store.networkType,
-          }
+  const selectExistingPairing = (wallet: WalletConnect2, existingPairing: any[]) => {
+    openModal(
+      ModalActivePairing,
+      {
+        title: "Select available pairing",
+        options: existingPairing,
+      },
+      {
+        on: {
+          select: async (event) => {
+            closeModal();
+            const topic = event.detail === "new_pairing" ? undefined : event.detail.topic;
+            await requestPermissionWc2(wallet, topic);
+          },
+        },
+      }
     );
   };
 
-  const connectWallet = async () => {
-    const wallet = (() => {
-      if (!$store.wallet) {
-        return createNewWallet();
-      } else {
-        return $store.wallet;
+  const createNewBeaconWallet = () => {
+    return new BeaconWallet({
+      name: "Taquito Test Dapp",
+      matrixNodes: [defaultMatrixNode] as any,
+      preferredNetwork: $store.networkType as NetworkTypeBeacon,
+    });
+  };
+
+  const createNewWalletConnect2 = async () => {
+    const wallet = await WalletConnect2.init({
+      logger: "debug",
+      projectId: "861613623da99d7285aaad8279a87ee9", // Your Project ID gives you access to WalletConnect Cloud.
+      metadata: {
+        name: "Taquito Test Dapp",
+        description: "Test Taquito with WalletConnect2",
+        icons: [],
+        url: "",
+      },
+    });
+    wallet.signClient.on("session_ping", ({ id, topic }) => {
+      console.log("session_ping in test dapp", id, topic);
+    });
+    wallet.signClient.on("session_delete", ({ topic }) => {
+      console.log("EVEN: session_delete", topic);
+      if (!wallet.isActiveSession()) {
+        resetApp();
       }
-    })();
+    });
+    wallet.signClient.on("session_update", async ({ topic }) => {
+      console.log("EVEN: session_update", topic);
+      const allAccounts = wallet.getAccounts();
+      await updateStore(wallet, allAccounts);
+    });
+    return wallet;
+  };
 
+  const requestPermissionWc2 = async (wallet: WalletConnect2, pairingTopic?: string) => {
+    await wallet.requestPermissions({
+      permissionScope: {
+        networks: [$store.networkType as NetworkTypeWc2],
+        events: [],
+        methods: [PermissionScopeMethods.OPERATION_REQUEST, PermissionScopeMethods.SIGN],
+      },
+      pairingTopic,
+      registryUrl: "https://www.tezos.help/wcdata/"
+    });
+    const allAccounts = wallet.getAccounts();
+    await updateStore(wallet, allAccounts);
+  };
+
+  const connectWalletWithExistingSession = async (sessionId: string) => {
+    const newWallet = await createNewWalletConnect2();
+    newWallet.configureWithExistingSessionKey(sessionId);
+    const allAccounts = newWallet.getAccounts();
+    await updateStore(newWallet, allAccounts);
+  };
+
+  const connectWallet = async () => {
+    if (!$store.wallet) {
+      if ($store.sdk === SDK.BEACON) {
+        const newWallet = createNewBeaconWallet();
+        await newWallet.requestPermissions({
+          network: {
+            type: $store.networkType as NetworkTypeBeacon,
+            rpcUrl: rpcUrl[$store.networkType],
+          },
+        });
+
+        const peers = await newWallet.client.getPeers();
+        connectedWallet = peers[0].name;
+        await updateStore(newWallet);
+      } else if ($store.sdk === SDK.WC2) {
+        const newWallet = await createNewWalletConnect2();
+        const existingPairing = newWallet.getAvailablePairing();
+        if (existingPairing.length > 0) {
+          selectExistingPairing(newWallet, existingPairing);
+        } else {
+          await requestPermissionWc2(newWallet);
+        }
+      }
+    } else {
+      return $store.wallet;
+    }
+  };
+
+  const updateUserBalance = async (userAddress: string) => {
+    const balance = await $store.Tezos.tz.getBalance(userAddress);
+    if (balance) {
+      store.updateUserBalance(balance.toNumber());
+    }
+  };
+
+  const updateStore = async (wallet: BeaconWallet | WalletConnect2, allAccounts?: string[]) => {
     try {
-      await wallet.requestPermissions({
-        network: {
-          type: $store.networkType,
-          rpcUrl: rpcUrl[$store.networkType],
-        },
-      });
-
-      const userAddress = (await wallet.getPKH()) as TezosAccountAddress;
+      store.updateWallet(wallet);
+      let userAddress: TezosAccountAddress;
+      if (allAccounts) {
+        if (allAccounts.length > 1) {
+          userAddress = allAccounts.shift() as TezosAccountAddress;
+          store.updateAvailableAccounts(allAccounts);
+        } else {
+          store.updateAvailableAccounts([]);
+          userAddress = allAccounts[0] as TezosAccountAddress;
+        }
+      } else {
+        userAddress = (await wallet.getPKH()) as TezosAccountAddress;
+      }
       store.updateUserAddress(userAddress);
+      if (wallet instanceof WalletConnect2) {
+        wallet.setActiveAccount(userAddress);
+        wallet.setActiveNetwork($store.networkType as any);
+      }
 
       const Tezos = new TezosToolkit(rpcUrl[$store.networkType]);
       Tezos.setWalletProvider(wallet);
       store.updateTezos(Tezos);
 
-      const balance = await Tezos.tz.getBalance(userAddress);
-      if (balance) {
-        store.updateUserBalance(balance.toNumber());
-      }
-
-      store.updateWallet(wallet);
-
-      const peers = await wallet.client.getPeers();
-      connectedWallet = peers[0].name;
+      await updateUserBalance(userAddress);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const disconnectWallet = async () => {
-    await $store.wallet.clearActiveAccount();
+  const resetApp = async () => {
     store.updateUserAddress(undefined);
     store.updateUserBalance(undefined);
     store.updateWallet(undefined);
     store.updateSelectedTest(undefined);
+    store.updateTests([]);
+    store.updateAvailableAccounts(undefined);
+  };
+
+  const disconnectWallet = async () => {
+    if ($store.wallet instanceof BeaconWallet) {
+      await $store.wallet.clearActiveAccount();
+    } else if ($store.wallet instanceof WalletConnect2) {
+      await $store.wallet.disconnect();
+    }
+    resetApp();
+  };
+
+  const switchActiveAccount = (newActiveAccount: string) => {
+    const currentPkh = $store.userAddress;
+    const availablePkh = $store.availableAccounts;
+    const index = availablePkh.indexOf(newActiveAccount, 0);
+    if (index > -1) {
+      availablePkh.splice(index, 1);
+    }
+    availablePkh.push(currentPkh);
+    store.updateAvailableAccounts(availablePkh);
+    store.updateUserAddress(newActiveAccount);
+    if ($store.wallet instanceof WalletConnect2) {
+      $store.wallet.setActiveAccount(newActiveAccount);
+    }
+    updateUserBalance(newActiveAccount);
   };
 
   onMount(async () => {
-    store.updateNetworkType(defaultNetworkType);
-
-    const wallet = createNewWallet();
-    store.updateWallet(wallet);
-    const activeAccount = await wallet.client.getActiveAccount();
-    if (activeAccount) {
-      const userAddress = (await wallet.getPKH()) as TezosAccountAddress;
-      store.updateUserAddress(userAddress);
-
-      const Tezos = new TezosToolkit(rpcUrl[$store.networkType]);
-      Tezos.setWalletProvider(wallet);
-      store.updateTezos(Tezos);
-
-      const balance = await Tezos.tz.getBalance(userAddress);
-      if (balance) {
-        store.updateUserBalance(balance.toNumber());
-      }
+    console.log("onmount wallet", $store);
+    if (
+      window &&
+      window.localStorage &&
+      window.localStorage["wc@2:client:0.3//session"] &&
+      window.localStorage["wc@2:client:0.3//session"] !== "[]"
+    ) {
+      const sessions = JSON.parse(window.localStorage["wc@2:client:0.3//session"]);
+      const lastSession = sessions[sessions.length - 1].topic;
+      store.updateSdk(SDK.WC2);
+      await connectWalletWithExistingSession(lastSession);
+    } else {
+      await connectWallet();
     }
   });
 
   afterUpdate(async () => {
-    if ($store.wallet) {
+    if ($store.wallet instanceof BeaconWallet) {
       const activeAccount = await $store.wallet.client.getActiveAccount();
       if (activeAccount) {
         const peers = await $store.wallet.client.getPeers();
@@ -115,6 +217,8 @@
           connectedWallet = peers[0].name;
         }
       }
+    } else if ($store.wallet instanceof WalletConnect2) {
+      connectedWallet = $store.wallet.getPeerMetadata().name;
     }
   });
 </script>
@@ -225,9 +329,11 @@
           <div>
             Connected to: {$store.networkType}
           </div>
-          <div>
-            Matrix node: {$store.matrixNode}
-          </div>
+          {#if $store.wallet instanceof BeaconWallet}
+            <div>
+              Matrix node: {$store.matrixNode}
+            </div>
+          {/if}
           <div>
             Wallet: {connectedWallet}
           </div>
@@ -238,10 +344,24 @@
             &nbsp; Disconnect
           </button>
         </div>
+        <div>
+          {#if $store.availableAccounts}
+            <br />
+            <div class="wallet-dialog__title">Switch account</div>
+            {#each $store.availableAccounts as pkh}
+              <button
+                on:click={() => {
+                  switchActiveAccount(pkh);
+                }}>{pkh}</button
+              >
+            {/each}
+          {/if}
+        </div>
       </div>
     {/if}
   </div>
 {:else}
+  <Modals />
   <button id="wallet-button" on:click={connectWallet}>
     <span class="material-icons-outlined"> person_off </span>
     No wallet connected

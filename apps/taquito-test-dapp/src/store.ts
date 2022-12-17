@@ -1,17 +1,25 @@
 import { writable } from "svelte/store";
-import type { NetworkType } from "@airgap/beacon-sdk";
+import type { NetworkType as  NetworkTypeBeacon } from "@airgap/beacon-sdk";
 import type { TezosToolkit } from "@taquito/taquito";
 import type { BeaconWallet } from "@taquito/beacon-wallet";
 import { defaultMatrixNode, defaultNetworkType } from "./config";
 import type { TestSettings } from "./types";
+import type { WalletConnect2, NetworkType as NetworkTypeWc2 } from "@taquito/wallet-connect-2";
+
+export enum SDK {
+  BEACON,
+  WC2
+}
 
 interface State {
+  sdk: SDK;
   Tezos: TezosToolkit;
   userAddress: string;
+  availableAccounts: string[];
   userBalance: number;
-  wallet: BeaconWallet;
+  wallet: BeaconWallet | WalletConnect2;
   disableDefaultEvents: boolean;
-  networkType: NetworkType;
+  networkType: NetworkTypeBeacon | NetworkTypeWc2;
   customNetworkUrl: string;
   matrixNode: string;
   confirmationObservableTest: { level: number; currentConfirmation: number }[];
@@ -20,8 +28,10 @@ interface State {
 }
 
 const initialState: State = {
+  sdk: undefined,
   Tezos: undefined,
   userAddress: undefined,
+  availableAccounts: undefined,
   userBalance: undefined,
   wallet: undefined,
   matrixNode: defaultMatrixNode,
@@ -37,10 +47,20 @@ const store = writable(initialState);
 
 const state = {
   subscribe: store.subscribe,
+  updateSdk: (sdk: SDK) =>
+    store.update(store => ({
+      ...store,
+      sdk
+    })),
   updateUserAddress: (address: string) =>
     store.update(store => ({
       ...store,
       userAddress: address
+    })),
+  updateAvailableAccounts: (addresses: string[]) =>
+    store.update(store => ({
+      ...store,
+      availableAccounts: addresses
     })),
   updateUserBalance: (balance: number) =>
     store.update(store => ({
@@ -52,7 +72,7 @@ const state = {
       ...store,
       Tezos
     })),
-  updateWallet: (wallet: BeaconWallet) =>
+  updateWallet: (wallet: BeaconWallet | WalletConnect2) =>
     store.update(store => ({
       ...store,
       wallet
@@ -67,7 +87,7 @@ const state = {
       ...store,
       disableDefaultEvents: !store.disableDefaultEvents
     })),
-  updateNetworkType: (networkType: NetworkType, url?: string) =>
+  updateNetworkType: (networkType: NetworkTypeBeacon, url?: string) =>
     store.update(store => ({
       ...store,
       networkType,
@@ -78,7 +98,7 @@ const state = {
       ...store,
       confirmationObservableTest:
         store.confirmationObservableTest &&
-        Array.isArray(store.confirmationObservableTest)
+          Array.isArray(store.confirmationObservableTest)
           ? [...store.confirmationObservableTest, conf]
           : [conf]
     })),

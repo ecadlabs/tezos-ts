@@ -4,6 +4,7 @@
   import type { TestSettings, TestResult } from "../types";
   import { shortenHash } from "../utils";
   import { NetworkType } from "@airgap/beacon-sdk";
+  import { BeaconWallet } from "@taquito/beacon-wallet";
 
   let test: TestSettings | undefined;
   let executionTime = 0;
@@ -12,6 +13,7 @@
   let opHash = "";
   let input = { text: "", fee: 400, storageLimit: 400, gasLimit: 1320 };
   let testResult: { id: string; title: string; body: any };
+  let error: Error | undefined;
 
   const run = async () => {
     success = undefined;
@@ -63,7 +65,8 @@
           };
         }
       } else {
-        throw "Error";
+        error = result.error;
+        throw result.error;
       }
     } catch (error) {
       console.log(error);
@@ -75,7 +78,9 @@
   };
 
   const switchAccount = async () => {
-    await $store.wallet.clearActiveAccount();
+    if($store.wallet instanceof BeaconWallet){
+      await $store.wallet.clearActiveAccount();
+    }
     store.updateUserAddress(undefined);
     store.updateUserBalance(undefined);
     store.updateWallet(undefined);
@@ -274,7 +279,9 @@
             </div>
             {#if test.documentation}
               <div class="learn-more">
-                <a href={test.documentation} target="_blank" rel="noopener noreferrer">Learn more about <b>{test.keyword}</b> with Taquito</a>
+                <a href={test.documentation} target="_blank" rel="noopener noreferrer"
+                  >Learn more about <b>{test.keyword}</b> with Taquito</a
+                >
               </div>
             {/if}
           </div>
@@ -369,6 +376,15 @@
           <h4>
             Test failed <span class="material-icons-outlined"> sentiment_very_dissatisfied </span>
           </h4>
+          {#if error}
+            <div style="word-break:break-word; color:#b92a2a">
+              {#if error instanceof Error}
+                {error}
+              {:else}
+                {JSON.stringify(error)}
+              {/if}
+            </div>
+          {/if}
         </div>
       {/if}
       <div class="test-run">
@@ -383,7 +399,9 @@
       </div>
       {#if test.documentation}
         <div class="learn-more">
-          <a href={test.documentation} target="_blank" rel="noopener noreferrer">Learn more about <b>{test.keyword}</b> with Taquito</a>
+          <a href={test.documentation} target="_blank" rel="noopener noreferrer"
+            >Learn more about <b>{test.keyword}</b> with Taquito</a
+          >
         </div>
       {/if}
     {/if}
