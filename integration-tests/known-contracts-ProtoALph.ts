@@ -5,4 +5,5 @@ export const knownContractsProtoALph: KnownContracts = {
   tzip12BigMapOffChainContract: "KT1KJqM6UkQf6nk2csMbLSqV7ivkMYFcU88f",
   saplingContract: "KT1R3pzTFYxb4nEr8xmofbBAuFhc6AZedsbE",
   onChainViewContractAddress: "KT1GcSugQyFwCWuA3bNqm5w3GtPaG5iKd91u",
+  ticketContract: "KT1EHcggVnBSEY2ypdyLy6yyr9HfuYWr7qH9",
 };
